@@ -1,0 +1,102 @@
+package client;
+
+import messages.*;
+import model.User;
+
+import java.io.*;
+import java.net.Socket;
+
+public class Client {
+    private String serverIp = "127.0.0.1";  // default to localhost
+    private int serverPort = 6060;
+
+    private User user;
+    private Socket socket;
+    private ObjectOutputStream objOutStream;
+    private ObjectInputStream objInStream;
+
+    public Client(){}
+    public Client(String serverIp, int serverPort) {
+        this.serverIp = serverIp;
+        this.serverPort = serverPort;
+    }
+
+    public void connect() throws IOException {
+        socket = new Socket(serverIp, serverPort);
+        objOutStream = new ObjectOutputStream(socket.getOutputStream());
+        objInStream = new ObjectInputStream(socket.getInputStream());
+        socket.setSoTimeout(10000);     // abort connection after 10 seconds of no response
+    }
+
+    public void authenticate() throws IOException, ClassNotFoundException {
+        if (user == null){
+            throw new RuntimeException("User is null");
+        }
+        if (socket == null){
+            throw new RuntimeException("Socket is null");
+        }
+
+        // send auth request
+        // not done properly, everything is in plain text!!
+        AuthMessage authMessage = new AuthMessage(user.getUsername(), user.getPassword());
+        objOutStream.writeObject(authMessage);
+
+        // await response
+        ResponseMessage response = (ResponseMessage) objInStream.readObject();
+        if (response.getResponse().equals("AUTHENTICATED")){
+            System.out.println("Authenticated");
+        }
+        else{
+            // TODO handle server response (incorrect password, etc)
+            System.out.println("Authentication failed");
+        }
+    }
+
+    // TODO fully implement
+    public void uploadFile(String filepath) throws IOException, ClassNotFoundException {
+        File file = new File(filepath);
+        if (!file.exists()) {
+            System.out.println("File does not exist");
+            return;
+        }
+
+        // Announce server of upload intent
+        UploadFileMessage uploadFileMessage = new UploadFileMessage(filepath, file.getName());
+        objOutStream.writeObject(uploadFileMessage);
+
+        // Wait for server to acknowledge
+        Message response = (Message) objInStream.readObject();
+        if (!(response instanceof AckMessage)) {
+            System.out.println("Server not ready to receive file.");
+            return;
+        }
+
+        // Open the file for reading
+        FileInputStream fileInputStream = new FileInputStream(file);
+        byte[] buffer = new byte[1024 * 1024]; // 1MB buffer
+        int bytesRead;
+
+        // Send the file in chunks
+        while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+            // Send the chunk to the server
+            objOutStream.write(buffer, 0, bytesRead);
+            objOutStream.flush(); // Ensure the data is sent immediately
+        }
+        objOutStream.writeObject(null); // might not be a very healthy approach
+
+        // Close the file input stream
+        fileInputStream.close();
+
+        // Wait for the server to acknowledge
+        response = (Message) objInStream.readObject();
+        if (response instanceof OkMessage) {
+            System.out.println("File uploaded successfully.");
+        } else {
+            System.out.println("File upload failed.");
+        }
+    }
+
+    public void setUser(User user) {
+        this.user = new User(user);
+    }
+}
