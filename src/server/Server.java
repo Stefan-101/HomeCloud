@@ -6,6 +6,8 @@ import model.*;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -40,9 +42,13 @@ public class Server {
         }
     }
 
-    private static User authenticate(User user){
+    private static User authenticate(User user) throws IOException {
         if (users.containsKey(user.getUsername())){
             if (users.get(user.getUsername()).checkPassword(user.getPassword())){
+                // set storage path for user
+                user.setStoragePath(STORAGE_DIR + File.separator + user.getUsername());
+                // create directory if it does not exist
+                Files.createDirectories(Path.of(user.getStoragePath()));
                 return user;
             }
         }
@@ -121,7 +127,7 @@ public class Server {
 
                 case "UPLOAD":
                     // Handle file upload
-                    if (!isAuthenticated) {
+                    if (!isAuthenticated || user == null) {
                         socket.close();
                         print("Not authenticated, aborted", hostInfo);
                         return;
@@ -131,7 +137,7 @@ public class Server {
                     UploadFileMessage uploadFileMessage = (UploadFileMessage) message;
 
                     // Prepare storage
-                    File file = new File(STORAGE_DIR + File.separator + uploadFileMessage.getFilename());
+                    File file = new File(user.getStoragePath() + File.separator + uploadFileMessage.getFilename());
                     if (file.exists()) {
                         if (!file.delete()) {
                             print("Failed to delete existing file: " + file.getName(), hostInfo);

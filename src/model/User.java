@@ -49,6 +49,14 @@ public class User implements Serializable {
         this.password = password;
     }
 
+    public String getStoragePath() {
+        return storagePath;
+    }
+
+    public void setStoragePath(String storagePath) {
+        this.storagePath = storagePath;
+    }
+
     public boolean checkPassword(String password){
         return this.password.equals(password);
     }
