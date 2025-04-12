@@ -5,6 +5,7 @@ import model.User;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.Scanner;
 
 public class Client {
     private String serverIp = "127.0.0.1";  // default to localhost
@@ -28,6 +29,44 @@ public class Client {
         socket.setSoTimeout(10000);     // abort connection after 10 seconds of no response
     }
 
+    public void setUser(User user) {
+        this.user = new User(user);
+    }
+
+    public void createAccount() throws IOException, ClassNotFoundException {
+        User newUser;
+        if (user != null){
+            newUser = user;
+        }
+        else{
+            String username;
+            String password;
+
+            System.out.println("= Create account =");
+            Scanner scanner = new Scanner(System.in);
+            System.out.print("Username: ");
+            username = scanner.nextLine();
+            System.out.print("Password: ");
+            password = scanner.nextLine();
+
+            newUser = new User(username, password);
+        }
+
+        setUser(newUser);
+
+        objOutStream.writeObject(new CreateAccMessage(newUser));
+
+        ResponseMessage response = (ResponseMessage) objInStream.readObject();
+        if (response.getResponse().equals("OK")){
+            System.out.println("Created account successfully");
+            authenticate();
+        } else if (response.getResponse().equals("WARN already exists")) {
+            System.out.println("Account already exists, authenticated");
+        } else{
+            System.out.println("Create account failed");
+        }
+    }
+
     public void authenticate() throws IOException, ClassNotFoundException {
         if (user == null){
             throw new RuntimeException("User is null");
@@ -38,7 +77,7 @@ public class Client {
 
         // send auth request
         // not done properly, everything is in plain text!!
-        AuthMessage authMessage = new AuthMessage(user.getUsername(), user.getPassword());
+        AuthMessage authMessage = new AuthMessage(user);
         objOutStream.writeObject(authMessage);
 
         // await response
@@ -94,9 +133,5 @@ public class Client {
         } else {
             System.out.println("File upload failed.");
         }
-    }
-
-    public void setUser(User user) {
-        this.user = new User(user);
     }
 }

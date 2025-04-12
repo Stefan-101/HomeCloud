@@ -6,13 +6,15 @@ import model.*;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public class Server {
     private static final int PORT = 6060;
     private static final String STORAGE_DIR = "D:/Java/HomeCloud/serverStorage";    // TODO get storage_dir through constructor
-    Set<User> users = new HashSet<>();
+    private static Map<String, User> users = new HashMap<>();
 
     public static void main(String[] args) throws IOException {
         ServerSocket serverSocket = new ServerSocket(PORT);     // TODO use try
@@ -38,6 +40,18 @@ public class Server {
         }
     }
 
+    private static User authenticate(User user){
+        if (users.containsKey(user.getUsername())){
+            if (users.get(user.getUsername()).checkPassword(user.getPassword())){
+                return user;
+            }
+        }
+        return null;
+    }
+    private static void print(String msg, String hostInfo){
+        System.out.println(msg + " - " + hostInfo);
+    }
+
     private static void handleClient(Socket socket) throws IOException, ClassNotFoundException {
         ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
         ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
@@ -52,30 +66,64 @@ public class Server {
             }
 
             String hostInfo = ((user != null) ? user.getUsername() + " " : "") + socket.getInetAddress().getHostAddress();
-            System.out.println("Received " + message.getType() + " from " + hostInfo);
+            print("Received " + message.getType(), hostInfo);
 
             switch (message.getType()) {
+                case "CREATE_ACCOUNT":
+                    CreateAccMessage createAccMessage = (CreateAccMessage) message;
+                    User userReq = createAccMessage.getUser();  // requested user account to be created
+
+                    // check if the account exists
+                    if (users.containsKey(userReq.getUsername())){
+                        user = authenticate(userReq);
+                        isAuthenticated = true;
+                        if (user == null){
+                            objectOutputStream.writeObject(new ResponseMessage("FAIL user already exists"));
+                            print("User already exists", hostInfo);
+                        }
+                        else{
+                            objectOutputStream.writeObject(new ResponseMessage("WARN already exists"));
+                        }
+                        break;
+                    }
+                    users.put(userReq.getUsername(), userReq);
+
+                    print("Created user " + userReq.getUsername(), hostInfo);
+
+                    // respond
+                    objectOutputStream.writeObject(new ResponseMessage("OK"));
+                    break;
+
                 case "AUTH":
                     // Handle authentication
                     AuthMessage authMessage = (AuthMessage) message;
-                    String username = authMessage.getUsername();
-                    String password = authMessage.getPassword();
+                    User reqUser = authMessage.getUser();
 
-                    // TODO: Implement auth logic
+                    if (!users.containsKey(reqUser.getUsername())){
+                       objectOutputStream.writeObject(new ResponseMessage("FAIL user does not exist"));
+                       print("User does not exist", hostInfo);
+                       break;
+                    }
 
-                    user = new User(username, password, STORAGE_DIR);
+                    user = authenticate(reqUser);
+                    if (user == null){
+                        objectOutputStream.writeObject(new ResponseMessage("FAIL wrong password"));
+                        print("Wrong password", hostInfo);
+                        socket.close();
+                        return;
+                    }
                     isAuthenticated = true;
 
                     // Respond
                     objectOutputStream.writeObject(new ResponseMessage("AUTHENTICATED"));
-                    System.out.println("User " + username + " authenticated");
+                    print("User " + user.getUsername() + " authenticated", hostInfo);
                     break;
 
                 case "UPLOAD":
                     // Handle file upload
                     if (!isAuthenticated) {
                         socket.close();
-                        System.out.println("Not authenticated, aborted");
+                        print("Not authenticated, aborted", hostInfo);
                         return;
                     }
 
@@ -86,7 +134,7 @@ public class Server {
                     File file = new File(STORAGE_DIR + File.separator + uploadFileMessage.getFilename());
                     if (file.exists()) {
                         if (!file.delete()) {
-                            System.out.println("Failed to delete existing file: " + file.getName());
+                            print("Failed to delete existing file: " + file.getName(), hostInfo);
                         }
                     }
                     else {
@@ -110,13 +158,13 @@ public class Server {
 
                     // Respond with completion message
                     objectOutputStream.writeObject(new OkMessage());
-                    System.out.println("File upload complete: " + file.getName());
+                    print("File upload complete: " + file.getName(), hostInfo);
 
                     break;
 
                 default:
                     // Handle unknown message types
-                    System.out.println("Unknown message type received: " + message);
+                    print("Unknown message type received: " + message, hostInfo);
                     socket.close();
                     break;
             }

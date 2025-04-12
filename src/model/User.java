@@ -1,14 +1,24 @@
 package model;
 
-public class User {
+import java.io.Serializable;
+
+public class User implements Serializable {
     private String username;
     private String password;
     private String storagePath;
 
+    {
+        storagePath = "";
+    }
+
     public User(){
         username = "";
         password = "";
-        storagePath = "";
+    }
+
+    public User(String username, String password){
+        this.username = username;
+        this.password = password;
     }
 
     public User(String username, String password, String storagePath) {
@@ -37,5 +47,32 @@ public class User {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public boolean checkPassword(String password){
+        return this.password.equals(password);
+    }
+
+    @Override
+    public int hashCode() {
+        return username.hashCode() * 31;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+
+        User user = (User) obj;
+        return this.username.equals(user.getUsername());
+    }
+
+    @Override
+    public String toString() {
+        return username;
     }
 }

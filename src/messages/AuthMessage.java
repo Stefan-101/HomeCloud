@@ -1,28 +1,29 @@
 package messages;
 
+import model.User;
+
 public class AuthMessage extends Message {
-    private String username;
-    private String password;
+    private User user;
 
     public AuthMessage(String username, String password) {
         super("AUTH");
-        this.username = username;
-        this.password = password;
+        this.user = new User(username, password);
+    }
+
+    public AuthMessage(User user) {
+        super("AUTH");
+        this.user = user;
     }
 
     public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
+        return user.getUsername();
     }
 
     public String getPassword() {
-        return password;
+        return user.getPassword();
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public User getUser() {
+        return user;
     }
 }
