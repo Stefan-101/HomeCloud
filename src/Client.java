@@ -1,5 +1,3 @@
-package client;
-
 import messages.*;
 import model.User;
 

@@ -1,5 +1,3 @@
-package server;
-
 import messages.*;
 import model.*;
 
@@ -9,9 +7,7 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 public class Server {
     private static final int PORT = 6060;
