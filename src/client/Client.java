@@ -5,6 +5,8 @@ import model.User;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Scanner;
 
 public class Client {
@@ -91,7 +93,6 @@ public class Client {
         }
     }
 
-    // TODO fully implement
     public void uploadFile(String filepath) throws IOException, ClassNotFoundException {
         File file = new File(filepath);
         if (!file.exists()) {
@@ -121,7 +122,7 @@ public class Client {
             objOutStream.write(buffer, 0, bytesRead);
             objOutStream.flush(); // Ensure the data is sent immediately
         }
-        objOutStream.writeObject(null); // might not be a very healthy approach
+        objOutStream.writeObject(null); // might not be a very healthy approach to mark EOF
 
         // Close the file input stream
         fileInputStream.close();
@@ -133,5 +134,41 @@ public class Client {
         } else {
             System.out.println("File upload failed.");
         }
+    }
+
+    public void downloadFile(String filepath) throws IOException, ClassNotFoundException {
+        // file paths
+        String currentPath = System.getProperty("user.dir") + File.separator + "downloads";
+        Files.createDirectories(Path.of(currentPath));
+
+        // send download request
+        objOutStream.writeObject(new DownloadFileMessage(filepath));
+
+        // Prepare storage context
+        File file = new File(currentPath + File.separator + filepath);
+        if (file.exists()) {
+            if (!file.delete()) {
+                System.out.println("Failed to delete file");
+            }
+        } else {
+            file.createNewFile();
+        }
+        FileOutputStream fileOutputStream = new FileOutputStream(file, true); // append mode
+
+        // wait for server's acknowledgement
+        AckMessage ackMessage = (AckMessage) objInStream.readObject();
+
+        // receive the file
+        byte[] buffer = new byte[1024 * 1024]; // 1MB buffer
+        int bytesRead;
+        while ((bytesRead = objInStream.read(buffer)) != -1) {
+            fileOutputStream.write(buffer, 0, bytesRead);
+            fileOutputStream.flush();
+        }
+
+        // After receiving all chunks, close the output stream
+        fileOutputStream.close();
+
+        System.out.println("Downloaded file successfully");
     }
 }

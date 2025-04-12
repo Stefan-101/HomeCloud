@@ -54,6 +54,7 @@ public class Server {
         }
         return null;
     }
+
     private static void print(String msg, String hostInfo){
         System.out.println(msg + " - " + hostInfo);
     }
@@ -75,19 +76,18 @@ public class Server {
             print("Received " + message.getType(), hostInfo);
 
             switch (message.getType()) {
-                case "CREATE_ACCOUNT":
+                case "CREATE_ACCOUNT": {
                     CreateAccMessage createAccMessage = (CreateAccMessage) message;
                     User userReq = createAccMessage.getUser();  // requested user account to be created
 
                     // check if the account exists
-                    if (users.containsKey(userReq.getUsername())){
+                    if (users.containsKey(userReq.getUsername())) {
                         user = authenticate(userReq);
                         isAuthenticated = true;
-                        if (user == null){
-                            objectOutputStream.writeObject(new ResponseMessage("FAIL user already exists"));
+                        if (user == null) {
+                            objectOutputStream.writeObject(new ErrMessage("FAIL user already exists"));
                             print("User already exists", hostInfo);
-                        }
-                        else{
+                        } else {
                             objectOutputStream.writeObject(new ResponseMessage("WARN already exists"));
                         }
                         break;
@@ -99,21 +99,22 @@ public class Server {
                     // respond
                     objectOutputStream.writeObject(new ResponseMessage("OK"));
                     break;
+                }
 
-                case "AUTH":
+                case "AUTH": {
                     // Handle authentication
                     AuthMessage authMessage = (AuthMessage) message;
                     User reqUser = authMessage.getUser();
 
-                    if (!users.containsKey(reqUser.getUsername())){
-                       objectOutputStream.writeObject(new ResponseMessage("FAIL user does not exist"));
-                       print("User does not exist", hostInfo);
-                       break;
+                    if (!users.containsKey(reqUser.getUsername())) {
+                        objectOutputStream.writeObject(new ErrMessage("FAIL user does not exist"));
+                        print("User does not exist", hostInfo);
+                        break;
                     }
 
                     user = authenticate(reqUser);
-                    if (user == null){
-                        objectOutputStream.writeObject(new ResponseMessage("FAIL wrong password"));
+                    if (user == null) {
+                        objectOutputStream.writeObject(new ErrMessage("FAIL wrong password"));
                         print("Wrong password", hostInfo);
                         socket.close();
                         return;
@@ -124,10 +125,12 @@ public class Server {
                     objectOutputStream.writeObject(new ResponseMessage("AUTHENTICATED"));
                     print("User " + user.getUsername() + " authenticated", hostInfo);
                     break;
+                }
 
-                case "UPLOAD":
+                case "UPLOAD": {
                     // Handle file upload
                     if (!isAuthenticated || user == null) {
+                        objectOutputStream.writeObject(new ErrMessage("Not Authenticated"));
                         socket.close();
                         print("Not authenticated, aborted", hostInfo);
                         return;
@@ -142,8 +145,7 @@ public class Server {
                         if (!file.delete()) {
                             print("Failed to delete existing file: " + file.getName(), hostInfo);
                         }
-                    }
-                    else {
+                    } else {
                         file.createNewFile();
                     }
                     FileOutputStream fileOutputStream = new FileOutputStream(file, true); // append mode
@@ -167,6 +169,43 @@ public class Server {
                     print("File upload complete: " + file.getName(), hostInfo);
 
                     break;
+                }
+
+                case "DOWNLOAD": {
+                    // handle file download
+                    if (!isAuthenticated || user == null) {
+                        objectOutputStream.writeObject(new ErrMessage("Not Authenticated"));
+                        socket.close();
+                        print("Not authenticated, aborted", hostInfo);
+                        return;
+                    }
+
+                    // check if the file exists
+                    DownloadFileMessage downloadFileMessage = (DownloadFileMessage) message;
+                    File file = new File(user.getStoragePath() + File.separator + downloadFileMessage.getFilepath());
+                    if (!file.exists()) {
+                        objectOutputStream.writeObject(new ErrMessage("File does not exist"));
+                        print("Request file does not exist: " + downloadFileMessage.getFilepath(), hostInfo);
+                    } else {
+                        // acknowledge request, prepare for file transmission
+                        objectOutputStream.writeObject(new AckMessage());
+                    }
+
+                    // transfer the file
+                    FileInputStream fileInputStream = new FileInputStream(file);
+                    byte[] buffer = new byte[1024 * 1024];
+                    int bytesRead;
+                    while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+                        objectOutputStream.write(buffer, 0, bytesRead);
+                        objectOutputStream.flush();
+                    }
+                    objectOutputStream.writeObject(null);   // might not be a healthy approach to mark EOF
+
+                    fileInputStream.close();
+
+                    print("File sent: " + file.getPath(), hostInfo);
+                    break;
+                }
 
                 default:
                     // Handle unknown message types
