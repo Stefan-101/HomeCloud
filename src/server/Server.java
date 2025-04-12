@@ -207,6 +207,15 @@ public class Server {
                     break;
                 }
 
+                case "DISCONNECT": {
+                    objectOutputStream.writeObject(new AckMessage());
+                    objectInputStream.close();
+                    objectOutputStream.close();
+                    socket.close();
+                    print("Disconnected", hostInfo);
+                    return;
+                }
+
                 default:
                     // Handle unknown message types
                     print("Unknown message type received: " + message, hostInfo);

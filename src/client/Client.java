@@ -171,4 +171,17 @@ public class Client {
 
         System.out.println("Downloaded file successfully");
     }
+
+    public void disconnect() throws IOException, ClassNotFoundException {
+        // send disconnect request
+        objOutStream.writeObject(new DisconnectMessage());
+        AckMessage ackMessage = (AckMessage) objInStream.readObject();
+
+        objOutStream.close();
+        objInStream.close();
+
+        if (socket.isClosed()) {
+            System.out.println("Disconnected");
+        }
+    }
 }
