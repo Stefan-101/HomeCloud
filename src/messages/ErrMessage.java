@@ -1,14 +1,7 @@
 package messages;
 
-public class ErrMessage extends Message {
-    private String message;
-
+public class ErrMessage extends ResponseMessage {
     public ErrMessage(String message) {
-        super("ERROR");
-        this.message = message;
-    }
-
-    public String getMessage() {
-        return message;
+        super("ERROR", message);
     }
 }

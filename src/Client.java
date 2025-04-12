@@ -22,15 +22,15 @@ public class Client {
         this.serverPort = serverPort;
     }
 
+    public void setUser(User user) {
+        this.user = new User(user);
+    }
+
     public void connect() throws IOException {
         socket = new Socket(serverIp, serverPort);
         objOutStream = new ObjectOutputStream(socket.getOutputStream());
         objInStream = new ObjectInputStream(socket.getInputStream());
         socket.setSoTimeout(10000);     // abort connection after 10 seconds of no response
-    }
-
-    public void setUser(User user) {
-        this.user = new User(user);
     }
 
     public void createAccount() throws IOException, ClassNotFoundException {
@@ -168,6 +168,24 @@ public class Client {
         fileOutputStream.close();
 
         System.out.println("Downloaded file successfully");
+    }
+
+    public void deleteFile(String filepath) throws IOException, ClassNotFoundException {
+        // file paths
+        String currentPath = System.getProperty("user.dir") + File.separator + "downloads";
+        Files.createDirectories(Path.of(currentPath));
+
+        // send delete request
+        objOutStream.writeObject(new DeleteFileMessage(filepath));
+
+        // receive server's confirmation
+        ResponseMessage response = (ResponseMessage) objInStream.readObject();
+        if (response.getResponse().equals("OK")){
+            System.out.println("Deleted file successfully");
+        }
+        else{
+            System.out.println("Deletion failed: " + response.getResponse());
+        }
     }
 
     public void disconnect() throws IOException, ClassNotFoundException {

@@ -8,6 +8,11 @@ public class ResponseMessage extends Message {
         this.response = response;
     }
 
+    public ResponseMessage(String type, String response) {
+        super(type);
+        this.response = response;
+    }
+
     public String getResponse() {
         return response;
     }

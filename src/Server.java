@@ -203,6 +203,36 @@ public class Server {
                     break;
                 }
 
+                case "DELETE": {
+                    if (!isAuthenticated || user == null) {
+                        objectOutputStream.writeObject(new ErrMessage("Not Authenticated"));
+                        socket.close();
+                        print("Not authenticated, aborted", hostInfo);
+                        return;
+                    }
+
+                    // receive delete request
+                    DeleteFileMessage deleteFileMessage = (DeleteFileMessage) message;
+                    File file = new File(user.getStoragePath() + File.separator + deleteFileMessage.getFilepath());
+
+                    // delete the file
+                    try{
+                        Files.delete(file.toPath());
+                    }
+                    catch (Exception e){
+                        print("Failed to delete file: " + file.getName() + "\n  " + e.getClass().getName(), hostInfo);
+                        objectOutputStream.writeObject(new ErrMessage("File could not be deleted"));
+                        break;
+                    }
+
+                    // send confirmation
+                    objectOutputStream.writeObject(new ResponseMessage("OK"));
+
+                    print("File deleted: " + file.getPath(), hostInfo);
+
+                    break;
+                }
+
                 case "DISCONNECT": {
                     objectOutputStream.writeObject(new AckMessage());
                     objectInputStream.close();
@@ -220,4 +250,6 @@ public class Server {
             }
         }
     }
+
+    // TODO checkAuthStatus function
 }
