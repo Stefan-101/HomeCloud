@@ -243,12 +243,15 @@ public class Server {
 
                     ChangePasswordMessage changePwMsg = (ChangePasswordMessage) message;
 
+                    // verify credentials
                     User reqUser = users.get(changePwMsg.getUser().getUsername());
-                    if (reqUser == null || !reqUser.equals(changePwMsg.getUser())) {
+                    if (reqUser == null || !reqUser.equals(changePwMsg.getUser()) || authenticate(changePwMsg.getUser()) == null) {
                         objOutStream.writeObject(new ErrMessage("User does not exist or wrong password!"));
+                        print("User does not exist or wrong password!", hostInfo);
                         break;
                     }
 
+                    // update password
                     reqUser.setPassword(changePwMsg.getNewPassword());
                     reqUser.setStoragePath(changePwMsg.getUser().getStoragePath());
                     users.put(changePwMsg.getUser().getUsername(), reqUser);

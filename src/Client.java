@@ -195,12 +195,11 @@ public class Client {
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
         if (response.getResponse().equals("OK")){
             System.out.println("Changed password successfully");
+            this.user.setPassword(newPassword);
         }
         else{
             System.out.println("Changed password failed");
         }
-
-        this.user.setPassword(newPassword);
     }
 
     public void disconnect() throws IOException, ClassNotFoundException {
