@@ -7,19 +7,34 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class Server {
     private static final int PORT = 6060;
     private static final String STORAGE_DIR = "D:/Java/HomeCloud/serverStorage";    // TODO get storage_dir through constructor
     private static Map<String, User> users = new HashMap<>();
+    private static List<Request> requests = new ArrayList<>();
 
     public static void main(String[] args) throws IOException {
         ServerSocket serverSocket = new ServerSocket(PORT);     // TODO use try
         System.out.println("Server started");
+
+        // Print requests list periodically
+//        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+//        scheduler.scheduleAtFixedRate(() -> {
+//            System.out.println("== Printing requests list ==");
+//            synchronized (requests) {
+//                List<Request> sortedRequests = new ArrayList<>(requests);
+//                sortedRequests.sort(Comparator.comparing(Request::getUser));
+//                for (Request req : sortedRequests) {
+//                    String userOrIp = req.getUser().getUsername() == "" ? req.getIp() : req.getUser().getUsername();
+//                    System.out.println("  " + userOrIp + ": " + req.getAction() + " at " + req.getTimestamp());
+//                }
+//            }
+//        }, 0, 30, TimeUnit.SECONDS);
 
         while (true) {
             Socket socket = serverSocket.accept();
@@ -73,6 +88,9 @@ public class Server {
 
             String hostInfo = ((user != null) ? user.getUsername() + " " : "") + socket.getInetAddress().getHostAddress();
             print("Received " + message.getType(), hostInfo);
+            synchronized (requests) {
+                requests.add(new Request(user != null ? user.stripPassword() : new User(), socket.getInetAddress().getHostAddress(), message.getType()));
+            }
 
             switch (message.getType()) {
                 case "CREATE_ACCOUNT": {

@@ -2,7 +2,7 @@ package model;
 
 import java.io.Serializable;
 
-public class User implements Serializable {
+public class User implements Serializable, Comparable<User> {
     private String username;
     private String password;
     private String storagePath;
@@ -61,6 +61,12 @@ public class User implements Serializable {
         return this.password.equals(password);
     }
 
+    public User stripPassword(){
+        User response = new User(this);
+        response.setPassword("");
+        return response;
+    }
+
     @Override
     public int hashCode() {
         return username.hashCode() * 31;
@@ -82,5 +88,10 @@ public class User implements Serializable {
     @Override
     public String toString() {
         return username;
+    }
+
+    @Override
+    public int compareTo(User otherUser) {
+        return this.username.compareTo(otherUser.getUsername());
     }
 }
