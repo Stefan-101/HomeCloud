@@ -188,6 +188,41 @@ public class Client {
         }
     }
 
+    public void createFolder(String folderpath) throws IOException, ClassNotFoundException {
+        objOutStream.writeObject(new UpdateFolderMessage(Action.CREATE, folderpath));
+        ResponseMessage response = (ResponseMessage) objInStream.readObject();
+
+        if (response.getResponse().equals("OK")){
+            System.out.println("Folder created successfully");
+        }
+        else{
+            System.out.println("Folder could not be created");
+        }
+    }
+
+    public void deleteFolder(String folderpath) throws IOException, ClassNotFoundException {
+        objOutStream.writeObject(new UpdateFolderMessage(Action.DELETE, folderpath));
+        ResponseMessage response = (ResponseMessage) objInStream.readObject();
+
+        if (response.getResponse().equals("OK")){
+            System.out.println("Folder deleted successfully");
+        }
+        else{
+            System.out.println("Folder could not be deleted");
+        }
+    }
+
+    public void moveFile(String oldfilepath, String newfilepath) throws IOException, ClassNotFoundException {
+        objOutStream.writeObject(new UpdateFolderMessage(Action.MOVE, oldfilepath, newfilepath));
+        ResponseMessage response = (ResponseMessage) objInStream.readObject();
+
+        if (response.getResponse().equals("OK")){
+            System.out.println("File moved successfully");
+        }
+        else{
+            System.out.println("File could not be moved");
+        }
+    }
 
     public void changePassword(String newPassword) throws IOException, ClassNotFoundException {
         objOutStream.writeObject(new ChangePasswordMessage(this.user, newPassword));

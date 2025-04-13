@@ -6,6 +6,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -233,6 +234,69 @@ public class Server {
                     break;
                 }
 
+                case "UPDATE_FOLDER": {
+                    if (!isAuthenticated || user == null) {
+                        objOutStream.writeObject(new ErrMessage("Not Authenticated"));
+                        socket.close();
+                        print("Not authenticated, aborted", hostInfo);
+                        return;
+                    }
+
+                    UpdateFolderMessage updFldMsg = (UpdateFolderMessage) message;
+
+                    switch (updFldMsg.getAction()) {
+                        case Action.CREATE: {
+                            String folderPath = user.getStoragePath() + File.separator + updFldMsg.getFolderPath();
+
+                            try{
+                                Files.createDirectories(Path.of(folderPath));
+                                objOutStream.writeObject(new ResponseMessage("OK"));
+                                print("Folder created: " + folderPath, hostInfo);
+                            }
+                            catch (Exception e){
+                                print("Failed to create folder: " + folderPath, hostInfo);
+                                objOutStream.writeObject(new ErrMessage("Folder could not be created"));
+                            }
+
+                            break;
+                        }
+
+                        case Action.DELETE: {
+                            String folderPath = user.getStoragePath() + File.separator + updFldMsg.getFolderPath();
+                            File directory = new File(folderPath);
+
+                            if (deleteDirectory(directory)){
+                                print("Folder deleted: " + folderPath, hostInfo);
+                                objOutStream.writeObject(new ResponseMessage("OK"));
+                                break;
+                            }
+
+                            print("Failed to delete folder: " + folderPath, hostInfo);
+                            break;
+                        }
+
+                        case Action.MOVE: {
+                            String oldFolderPath = user.getStoragePath() + File.separator + updFldMsg.getOldFolderPath();
+                            String folderPath = user.getStoragePath() + File.separator + updFldMsg.getFolderPath();
+
+                            try{
+                                Files.move(Path.of(oldFolderPath), Path.of(folderPath), StandardCopyOption.REPLACE_EXISTING);
+                                objOutStream.writeObject(new ResponseMessage("OK"));
+                                print("Moved old folder: " + oldFolderPath, hostInfo);
+
+                                break;
+                            }
+                            catch (Exception e){
+                                print("Failed to move folder: " + oldFolderPath, hostInfo);
+                                objOutStream.writeObject(new ErrMessage("Folder could not be moved"));
+                                break;
+                            }
+                        }
+                    }
+
+                    break;
+                }
+
                 case "CHANGE_PW": {
                     if (!isAuthenticated || user == null) {
                         objOutStream.writeObject(new ErrMessage("Not Authenticated"));
@@ -277,6 +341,16 @@ public class Server {
                     break;
             }
         }
+    }
+
+    static boolean deleteDirectory(File directoryToBeDeleted) {
+        File[] allContents = directoryToBeDeleted.listFiles();
+        if (allContents != null) {
+            for (File file : allContents) {
+                deleteDirectory(file);
+            }
+        }
+        return directoryToBeDeleted.delete();
     }
 
     // TODO checkAuthStatus function
