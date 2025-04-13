@@ -7,6 +7,8 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -216,6 +218,12 @@ public class Server {
                     DeleteFileMessage deleteFileMessage = (DeleteFileMessage) message;
                     File file = new File(user.getStoragePath() + File.separator + deleteFileMessage.getFilepath());
 
+                    if (file.getPath().contains("..")){
+                        objOutStream.writeObject(new ErrMessage("Invalid path"));
+                        print("Invalid path", hostInfo);
+                        break;
+                    }
+
                     // delete the file
                     try{
                         Files.delete(file.toPath());
@@ -297,6 +305,22 @@ public class Server {
                     break;
                 }
 
+                case "GET_FOLDER_TREE": {
+                    GetFolderTreeMessage getFldTreeMessage = (GetFolderTreeMessage) message;
+
+                    // don't allow user to exit their folder
+                    if (getFldTreeMessage.getPath().contains("..")){
+                        objOutStream.writeObject(new ErrMessage("Invalid path"));
+                        print("Invalid path: " + getFldTreeMessage.getPath(), hostInfo);
+                        break;
+                    }
+
+                    String response = getFolderTree(Path.of(user.getStoragePath() + File.separator + getFldTreeMessage.getPath()));
+                    objOutStream.writeObject(response);
+
+                    break;
+                }
+
                 case "CHANGE_PW": {
                     if (!isAuthenticated || user == null) {
                         objOutStream.writeObject(new ErrMessage("Not Authenticated"));
@@ -352,6 +376,36 @@ public class Server {
         }
         return directoryToBeDeleted.delete();
     }
+
+    public static String getFolderTree(Path path) throws IOException {
+        StringBuilder tree = new StringBuilder();
+        walk(path, tree, "", true);
+        return tree.toString();
+    }
+
+    private static void walk(Path path, StringBuilder tree, String indent, boolean isLast) throws IOException {
+        if (!Files.isDirectory(path)) return;
+
+        tree.append(indent);
+        if (isLast) {
+            tree.append("└── ");
+            indent += "    ";
+        } else {
+            tree.append("├── ");
+            indent += "│   ";
+        }
+        tree.append(path.getFileName()).append("\n");
+
+        File[] files = path.toFile().listFiles();
+        if (files == null) return;
+
+        Arrays.sort(files, Comparator.comparing(File::getName));
+        for (int i = 0; i < files.length; i++) {
+            boolean last = (i == files.length - 1);
+            walk(files[i].toPath(), tree, indent, last);
+        }
+    }
+
 
     // TODO checkAuthStatus function
 }

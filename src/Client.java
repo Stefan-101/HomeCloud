@@ -212,6 +212,13 @@ public class Client {
         }
     }
 
+    public String listFolder(String folderpath) throws IOException, ClassNotFoundException {
+        objOutStream.writeObject(new GetFolderTreeMessage(folderpath));
+        String response = (String) objInStream.readObject();
+
+        return response;
+    }
+
     public void moveFile(String oldfilepath, String newfilepath) throws IOException, ClassNotFoundException {
         objOutStream.writeObject(new UpdateFolderMessage(Action.MOVE, oldfilepath, newfilepath));
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
