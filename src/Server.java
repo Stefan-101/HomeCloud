@@ -56,13 +56,13 @@ public class Server {
     }
 
     private static void handleClient(Socket socket) throws IOException, ClassNotFoundException {
-        ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
-        ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+        ObjectInputStream objInStream = new ObjectInputStream(socket.getInputStream());
+        ObjectOutputStream objOutStream = new ObjectOutputStream(socket.getOutputStream());
         User user = null;
         Boolean isAuthenticated = false;
 
         while (true){
-            Message message = (Message) objectInputStream.readObject();
+            Message message = (Message) objInStream.readObject();
 
             if (message == null){
                 continue;
@@ -79,12 +79,12 @@ public class Server {
                     // check if the account exists
                     if (users.containsKey(userReq.getUsername())) {
                         user = authenticate(userReq);
-                        isAuthenticated = true;
                         if (user == null) {
-                            objectOutputStream.writeObject(new ErrMessage("FAIL user already exists"));
+                            objOutStream.writeObject(new ErrMessage("FAIL user already exists"));
                             print("User already exists", hostInfo);
                         } else {
-                            objectOutputStream.writeObject(new ResponseMessage("WARN already exists"));
+                            objOutStream.writeObject(new ResponseMessage("WARN already exists"));
+                            isAuthenticated = true;
                         }
                         break;
                     }
@@ -93,7 +93,7 @@ public class Server {
                     print("Created user " + userReq.getUsername(), hostInfo);
 
                     // respond
-                    objectOutputStream.writeObject(new ResponseMessage("OK"));
+                    objOutStream.writeObject(new ResponseMessage("OK"));
                     break;
                 }
 
@@ -103,14 +103,14 @@ public class Server {
                     User reqUser = authMessage.getUser();
 
                     if (!users.containsKey(reqUser.getUsername())) {
-                        objectOutputStream.writeObject(new ErrMessage("FAIL user does not exist"));
+                        objOutStream.writeObject(new ErrMessage("FAIL user does not exist"));
                         print("User does not exist", hostInfo);
                         break;
                     }
 
                     user = authenticate(reqUser);
                     if (user == null) {
-                        objectOutputStream.writeObject(new ErrMessage("FAIL wrong password"));
+                        objOutStream.writeObject(new ErrMessage("FAIL wrong password"));
                         print("Wrong password", hostInfo);
                         socket.close();
                         return;
@@ -118,7 +118,7 @@ public class Server {
                     isAuthenticated = true;
 
                     // Respond
-                    objectOutputStream.writeObject(new ResponseMessage("AUTHENTICATED"));
+                    objOutStream.writeObject(new ResponseMessage("AUTHENTICATED"));
                     print("User " + user.getUsername() + " authenticated", hostInfo);
                     break;
                 }
@@ -126,7 +126,7 @@ public class Server {
                 case "UPLOAD": {
                     // Handle file upload
                     if (!isAuthenticated || user == null) {
-                        objectOutputStream.writeObject(new ErrMessage("Not Authenticated"));
+                        objOutStream.writeObject(new ErrMessage("Not Authenticated"));
                         socket.close();
                         print("Not authenticated, aborted", hostInfo);
                         return;
@@ -147,12 +147,12 @@ public class Server {
                     FileOutputStream fileOutputStream = new FileOutputStream(file, true); // append mode
 
                     // Acknowledge the request
-                    objectOutputStream.writeObject(new AckMessage());
+                    objOutStream.writeObject(new AckMessage());
 
                     // Receive the file
                     byte[] buffer = new byte[1024 * 1024]; // 1MB buffer
                     int bytesRead;
-                    while ((bytesRead = objectInputStream.read(buffer)) != -1) {
+                    while ((bytesRead = objInStream.read(buffer)) != -1) {
                         fileOutputStream.write(buffer, 0, bytesRead);
                         fileOutputStream.flush();
                     }
@@ -161,7 +161,7 @@ public class Server {
                     fileOutputStream.close();
 
                     // Respond with completion message
-                    objectOutputStream.writeObject(new OkMessage());
+                    objOutStream.writeObject(new OkMessage());
                     print("File upload complete: " + file.getName(), hostInfo);
 
                     break;
@@ -170,7 +170,7 @@ public class Server {
                 case "DOWNLOAD": {
                     // handle file download
                     if (!isAuthenticated || user == null) {
-                        objectOutputStream.writeObject(new ErrMessage("Not Authenticated"));
+                        objOutStream.writeObject(new ErrMessage("Not Authenticated"));
                         socket.close();
                         print("Not authenticated, aborted", hostInfo);
                         return;
@@ -180,11 +180,11 @@ public class Server {
                     DownloadFileMessage downloadFileMessage = (DownloadFileMessage) message;
                     File file = new File(user.getStoragePath() + File.separator + downloadFileMessage.getFilepath());
                     if (!file.exists()) {
-                        objectOutputStream.writeObject(new ErrMessage("File does not exist"));
+                        objOutStream.writeObject(new ErrMessage("File does not exist"));
                         print("Request file does not exist: " + downloadFileMessage.getFilepath(), hostInfo);
                     } else {
                         // acknowledge request, prepare for file transmission
-                        objectOutputStream.writeObject(new AckMessage());
+                        objOutStream.writeObject(new AckMessage());
                     }
 
                     // transfer the file
@@ -192,10 +192,10 @@ public class Server {
                     byte[] buffer = new byte[1024 * 1024];
                     int bytesRead;
                     while ((bytesRead = fileInputStream.read(buffer)) != -1) {
-                        objectOutputStream.write(buffer, 0, bytesRead);
-                        objectOutputStream.flush();
+                        objOutStream.write(buffer, 0, bytesRead);
+                        objOutStream.flush();
                     }
-                    objectOutputStream.writeObject(null);   // might not be a healthy approach to mark EOF
+                    objOutStream.writeObject(null);   // might not be a healthy approach to mark EOF
 
                     fileInputStream.close();
 
@@ -205,7 +205,7 @@ public class Server {
 
                 case "DELETE": {
                     if (!isAuthenticated || user == null) {
-                        objectOutputStream.writeObject(new ErrMessage("Not Authenticated"));
+                        objOutStream.writeObject(new ErrMessage("Not Authenticated"));
                         socket.close();
                         print("Not authenticated, aborted", hostInfo);
                         return;
@@ -221,22 +221,47 @@ public class Server {
                     }
                     catch (Exception e){
                         print("Failed to delete file: " + file.getName() + "\n  " + e.getClass().getName(), hostInfo);
-                        objectOutputStream.writeObject(new ErrMessage("File could not be deleted"));
+                        objOutStream.writeObject(new ErrMessage("File could not be deleted"));
                         break;
                     }
 
                     // send confirmation
-                    objectOutputStream.writeObject(new ResponseMessage("OK"));
+                    objOutStream.writeObject(new ResponseMessage("OK"));
 
                     print("File deleted: " + file.getPath(), hostInfo);
 
                     break;
                 }
 
+                case "CHANGE_PW": {
+                    if (!isAuthenticated || user == null) {
+                        objOutStream.writeObject(new ErrMessage("Not Authenticated"));
+                        socket.close();
+                        print("Not authenticated, aborted", hostInfo);
+                        return;
+                    }
+
+                    ChangePasswordMessage changePwMsg = (ChangePasswordMessage) message;
+
+                    User reqUser = users.get(changePwMsg.getUser().getUsername());
+                    if (reqUser == null || !reqUser.equals(changePwMsg.getUser())) {
+                        objOutStream.writeObject(new ErrMessage("User does not exist or wrong password!"));
+                        break;
+                    }
+
+                    reqUser.setPassword(changePwMsg.getNewPassword());
+                    reqUser.setStoragePath(changePwMsg.getUser().getStoragePath());
+                    users.put(changePwMsg.getUser().getUsername(), reqUser);
+
+                    objOutStream.writeObject(new ResponseMessage("OK"));
+
+                    break;
+                }
+
                 case "DISCONNECT": {
-                    objectOutputStream.writeObject(new AckMessage());
-                    objectInputStream.close();
-                    objectOutputStream.close();
+                    objOutStream.writeObject(new AckMessage());
+                    objInStream.close();
+                    objOutStream.close();
                     socket.close();
                     print("Disconnected", hostInfo);
                     return;

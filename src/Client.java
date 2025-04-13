@@ -188,6 +188,21 @@ public class Client {
         }
     }
 
+
+    public void changePassword(String newPassword) throws IOException, ClassNotFoundException {
+        objOutStream.writeObject(new ChangePasswordMessage(this.user, newPassword));
+
+        ResponseMessage response = (ResponseMessage) objInStream.readObject();
+        if (response.getResponse().equals("OK")){
+            System.out.println("Changed password successfully");
+        }
+        else{
+            System.out.println("Changed password failed");
+        }
+
+        this.user.setPassword(newPassword);
+    }
+
     public void disconnect() throws IOException, ClassNotFoundException {
         // send disconnect request
         objOutStream.writeObject(new DisconnectMessage());
