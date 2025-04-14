@@ -51,6 +51,8 @@ public class Server {
 
         while (true) {
             Socket socket = serverSocket.accept();
+            ObjectInputStream objInStream = new ObjectInputStream(socket.getInputStream());
+            ObjectOutputStream objOutStream = new ObjectOutputStream(socket.getOutputStream());
             System.out.println("Client connected");
 
             new Thread(() -> {
