@@ -84,7 +84,7 @@ public class Server {
                 socket = (SSLSocket) serverSocket.accept();
                 objInStream = new ObjectInputStream(socket.getInputStream());
                 objOutStream = new ObjectOutputStream(socket.getOutputStream());
-                System.out.println("Client connected");
+                System.out.println("Client connected - " + socket.getInetAddress().getHostAddress());
                 System.out.println("Protocol used: " + socket.getSession().getProtocol());
             }
             catch (Exception e){

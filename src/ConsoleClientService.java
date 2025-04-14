@@ -21,17 +21,16 @@ public class ConsoleClientService extends Client {
         super.setUser(new User(username, password));
     }
 
-    @Override
-    public void setServerIp(String serverIp) {
+    public void setServerIp() {
         System.out.print("Server IP: ");
         String serverIP = scanner.nextLine();
         super.setServerIp(serverIP);
     }
 
-    @Override
-    public void setServerPort(int serverPort) {
+    public void setServerPort() {
         System.out.print("Server Port: ");
         int port = scanner.nextInt();
+        scanner.nextLine();
         super.setServerPort(port);
     }
 
@@ -40,9 +39,11 @@ public class ConsoleClientService extends Client {
             int result = super.createAccount();
             if (result == 1){
                 System.out.println("Account created successfully");
+                return 1;
             }
             else {
                 System.out.println("Account already exists, authenticated");
+                return 1;
             }
         }
         catch (ClassCastException e){
@@ -55,17 +56,20 @@ public class ConsoleClientService extends Client {
         return 0;
     }
 
-    public void authenticate(){
+    public boolean auth(){
         try{
             super.authenticate();
             System.out.println("Authentication successful");
+            return true;
         }
         catch (ClassCastException e){
             System.out.println("Server disconnected");
+            return false;
         }
         catch (Exception e){
             System.out.println("Authentication failed");
             System.out.println(e.getMessage());
+            return false;
         }
     }
 
