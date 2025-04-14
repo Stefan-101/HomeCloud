@@ -1,6 +1,8 @@
 import messages.*;
 import model.User;
 
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.*;
 import java.net.Socket;
 import java.nio.file.Files;
@@ -13,9 +15,15 @@ public class Client {
     private int serverPort = 6060;
 
     private User user;
-    private Socket socket;
+    private SSLSocket socket;
     private ObjectOutputStream objOutStream;
     private ObjectInputStream objInStream;
+
+    static {
+        // demo purposes, trust my own cert
+        System.setProperty("javax.net.ssl.trustStore", "client.truststore");
+        System.setProperty("javax.net.ssl.trustStorePassword", "changeit");
+    }
 
     public Client(){}
     public Client(String serverIp, int serverPort) {
@@ -42,10 +50,20 @@ public class Client {
     }
 
     public void connect() throws IOException {
-        socket = new Socket(serverIp, serverPort);
+        SSLSocketFactory sslSocketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+        SSLSocket sslSocket = (SSLSocket) sslSocketFactory.createSocket(serverIp, serverPort);
+        socket = sslSocket;
+        sslSocket.setEnabledProtocols(sslSocket.getSupportedProtocols());
+
         objOutStream = new ObjectOutputStream(socket.getOutputStream());
         objInStream = new ObjectInputStream(socket.getInputStream());
         socket.setSoTimeout(10000);     // abort connection after 10 seconds of no response
+
+        // insecure
+//        socket = new Socket(serverIp, serverPort);
+//        objOutStream = new ObjectOutputStream(socket.getOutputStream());
+//        objInStream = new ObjectInputStream(socket.getInputStream());
+//        socket.setSoTimeout(10000);     // abort connection after 10 seconds of no response
     }
 
     public int createAccount() throws IOException, ClassNotFoundException {
