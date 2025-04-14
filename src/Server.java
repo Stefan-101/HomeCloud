@@ -222,7 +222,6 @@ public class Server {
 
                     // update password
                     reqUser.setPassword(changePwMsg.getNewPassword());
-                    reqUser.setStoragePath(changePwMsg.getUser().getStoragePath());
                     users.put(changePwMsg.getUser().getUsername(), reqUser);
 
                     objOutStream.writeObject(new OkMessage());
@@ -243,7 +242,8 @@ public class Server {
                     UploadFileMessage uploadFileMessage = (UploadFileMessage) message;
 
                     // Prepare storage
-                    File file = new File(user.getStoragePath() + File.separator + uploadFileMessage.getFilename());
+                    SecurePath path = new SecurePath(user.getStoragePath(), uploadFileMessage.getFilename());
+                    File file = new File(path.getStringPath());
                     if (file.exists()) {
                         if (!file.delete()) {
                             print("Failed to delete existing file: " + file.getName(), hostInfo);
@@ -287,7 +287,8 @@ public class Server {
 
                     // check if the file exists
                     DownloadFileMessage downloadFileMessage = (DownloadFileMessage) message;
-                    File file = new File(user.getStoragePath() + File.separator + downloadFileMessage.getFilepath());
+                    SecurePath path = new SecurePath(user.getStoragePath(), downloadFileMessage.getFilepath());
+                    File file = new File(path.getStringPath());
                     if (!file.exists()) {
                         objOutStream.writeObject(new ErrMessage("File does not exist"));
                         print("Request file does not exist: " + downloadFileMessage.getFilepath(), hostInfo);
@@ -323,13 +324,8 @@ public class Server {
 
                     // receive delete request
                     DeleteFileMessage deleteFileMessage = (DeleteFileMessage) message;
-                    File file = new File(user.getStoragePath() + File.separator + deleteFileMessage.getFilepath());
-
-                    if (file.getPath().contains("..")){
-                        objOutStream.writeObject(new ErrMessage("Invalid path"));
-                        print("Invalid path", hostInfo);
-                        break;
-                    }
+                    SecurePath path = new SecurePath(user.getStoragePath(), deleteFileMessage.getFilepath());
+                    File file = new File(path.getStringPath());
 
                     // delete the file
                     try{
@@ -359,18 +355,12 @@ public class Server {
 
                     UpdateFolderMessage updFldMsg = (UpdateFolderMessage) message;
 
-                    if (updFldMsg.contains("..")){
-                        objOutStream.writeObject(new ErrMessage("Invalid path"));
-                        print("Invalid path", hostInfo);
-                        break;
-                    }
-
                     switch (updFldMsg.getAction()) {
                         case Action.CREATE: {
-                            String folderPath = user.getStoragePath() + File.separator + updFldMsg.getFolderPath();
+                            SecurePath folderPath = new SecurePath(user.getStoragePath(), updFldMsg.getFolderPath());
 
                             try{
-                                Files.createDirectories(Path.of(folderPath));
+                                Files.createDirectories(folderPath.getPath());
                                 objOutStream.writeObject(new OkMessage());
                                 print("Folder created: " + folderPath, hostInfo);
                             }
@@ -383,7 +373,7 @@ public class Server {
                         }
 
                         case Action.DELETE: {
-                            String folderPath = user.getStoragePath() + File.separator + updFldMsg.getFolderPath();
+                            String folderPath = (new SecurePath(user.getStoragePath(), updFldMsg.getFolderPath())).getStringPath();
                             File directory = new File(folderPath);
 
                             if (deleteDirectory(directory)){
@@ -398,11 +388,11 @@ public class Server {
                         }
 
                         case Action.MOVE: {
-                            String oldFolderPath = user.getStoragePath() + File.separator + updFldMsg.getOldFolderPath();
-                            String folderPath = user.getStoragePath() + File.separator + updFldMsg.getFolderPath();
+                            SecurePath oldFolderPath = new SecurePath(user.getStoragePath(), updFldMsg.getOldFolderPath());
+                            SecurePath folderPath = new SecurePath(user.getStoragePath(), updFldMsg.getFolderPath());
 
                             try{
-                                Files.move(Path.of(oldFolderPath), Path.of(folderPath), StandardCopyOption.REPLACE_EXISTING);
+                                Files.move(oldFolderPath.getPath(), folderPath.getPath(), StandardCopyOption.REPLACE_EXISTING);
                                 objOutStream.writeObject(new OkMessage());
                                 print("Moved old folder: " + oldFolderPath, hostInfo);
 
@@ -422,14 +412,8 @@ public class Server {
                 case "GET_FOLDER_TREE": {
                     GetFolderTreeMessage getFldTreeMessage = (GetFolderTreeMessage) message;
 
-                    // don't allow user to exit their folder
-                    if (getFldTreeMessage.getPath().contains("..")){
-                        objOutStream.writeObject(new ErrMessage("Invalid path"));
-                        print("Invalid path: " + getFldTreeMessage.getPath(), hostInfo);
-                        break;
-                    }
-
-                    String response = getFolderTree(Path.of(user.getStoragePath() + File.separator + getFldTreeMessage.getPath()));
+                    SecurePath path = new SecurePath(user.getStoragePath(), getFldTreeMessage.getPath());
+                    String response = getFolderTree(path.getPath());
                     objOutStream.writeObject(response);
 
                     break;
@@ -492,7 +476,6 @@ public class Server {
             walk(files[i].toPath(), tree, indent, last);
         }
     }
-
 
     // TODO checkAuthStatus function
 }
