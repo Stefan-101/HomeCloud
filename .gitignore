@@ -32,6 +32,8 @@ bin/
 /serverStorage
 *.txt
 *.keystore
+*.crt
+*.truststore
 
 # Ignore Main for now
 Main.java

@@ -36,13 +36,29 @@ public class Server {
         // initialize the TLS keys
         System.setProperty("javax.net.ssl.keyStore", "./server.keystore");
         System.setProperty("javax.net.ssl.keyStorePassword", "yourPassword");
+
+        // Generate key
+        //
+        // keytool -genkeypair \
+        // -alias serverkey \
+        // -keyalg RSA \
+        // -keysize 2048 \
+        // -validity 365 \
+        // -keystore server.keystore \
+        // -storepass yourPassword
+
+        // Export certificate
+        // keytool -export -alias serverkey -keystore server.keystore -file server.crt -storepass yourPassword
+
+        // Create truststore
+        // keytool -import -alias servercert -file server.crt -keystore client.truststore -storepass changeit
     }
 
     public static void main(String[] args) throws IOException {
         SSLServerSocketFactory sslServerSocketFactory = (SSLServerSocketFactory) SSLServerSocketFactory.getDefault();
-        SSLServerSocket serverSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(6062);
+        SSLServerSocket serverSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(PORT);
 
-        System.out.println("Secure TLS server listening on port 6062...");
+        System.out.println("Secure TLS server listening on port " + PORT + "...");
 
         // Print requests list periodically
 //        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
