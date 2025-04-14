@@ -74,7 +74,6 @@ public class Server {
                 continue;
             }
 
-
             new Thread(() -> {
                 try{
                     socket.setSoTimeout(300_000);
