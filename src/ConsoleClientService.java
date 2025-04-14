@@ -176,14 +176,14 @@ public class ConsoleClientService extends Client {
     }
 
     public void moveFolder() {
-        System.out.println("== Move folder ==");
-        System.out.print("Old folder path: ");
+        System.out.println("== Move folder/file ==");
+        System.out.print("Old path: ");
         String oldPath = scanner.nextLine();
-        System.out.print("New folder path: ");
+        System.out.print("New path: ");
         String newPath = scanner.nextLine();
         try{
             super.moveFile(oldPath, newPath);
-            System.out.println("Folder moved successfully");
+            System.out.println("Moved successfully");
         }
         catch (ClassCastException e){
             System.out.println("Server disconnected");

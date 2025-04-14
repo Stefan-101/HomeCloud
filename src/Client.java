@@ -57,7 +57,7 @@ public class Client {
 
         objOutStream = new ObjectOutputStream(socket.getOutputStream());
         objInStream = new ObjectInputStream(socket.getInputStream());
-        socket.setSoTimeout(300_000);     // abort connection after some time of no response
+        socket.setSoTimeout(30_000);     // abort connection after some time of no response
 
         // insecure
 //        socket = new Socket(serverIp, serverPort);
