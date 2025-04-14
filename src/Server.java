@@ -17,9 +17,9 @@ import java.util.concurrent.TimeUnit;
 
 public class Server {
     private static final int PORT = 6060;
-    private static String STORAGE_DIR;
-    private static Map<String, User> users = new HashMap<>();
-    private static List<Request> requests = new ArrayList<>();
+    private static final String STORAGE_DIR;
+    private static Map<String, User> users = new HashMap<>();       // store users and their passwordsd
+    private static List<Request> requests = new ArrayList<>();      // some logging
 
     static {
         // should be done with dotenv, but I can't be bothered to install it for one line of text
@@ -55,6 +55,7 @@ public class Server {
     }
 
     public static void main(String[] args) throws IOException {
+        // create a secure socket
         SSLServerSocketFactory sslServerSocketFactory = (SSLServerSocketFactory) SSLServerSocketFactory.getDefault();
         SSLServerSocket serverSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(PORT);
 
@@ -75,6 +76,7 @@ public class Server {
 //        }, 0, 30, TimeUnit.SECONDS);
 
         while (true) {
+            // accept connections
             SSLSocket socket;
             ObjectInputStream objInStream;
             ObjectOutputStream objOutStream;
@@ -99,7 +101,7 @@ public class Server {
                     e.printStackTrace();
 
                     try {
-                        objOutStream.writeObject(new DisconnectMessage());  // client can't yet handle this
+                        objOutStream.writeObject(new DisconnectMessage());
                         objInStream.close();
                         objOutStream.close();
                         socket.close();
@@ -115,6 +117,7 @@ public class Server {
     }
 
     private static User authenticate(User user) throws IOException {
+        // returns the user if successfully authenticated, null otherwise
         if (users.containsKey(user.getUsername())){
             if (users.get(user.getUsername()).checkPassword(user.getPassword())){
                 // set storage path for user
@@ -136,18 +139,21 @@ public class Server {
         Boolean isAuthenticated = false;
 
         while (true){
+            // receive messages from the client
             Message message = (Message) objInStream.readObject();
 
             if (message == null){
                 continue;
             }
 
+            // log each message received
             String hostInfo = ((user != null) ? user.getUsername() + " " : "") + socket.getInetAddress().getHostAddress();
             print("Received " + message.getType(), hostInfo);
             synchronized (requests) {
                 requests.add(new Request(user != null ? user.stripPassword() : new User(), socket.getInetAddress().getHostAddress(), message.getType()));
             }
 
+            // process message
             switch (message.getType()) {
                 case "CREATE_ACCOUNT": {
                     CreateAccMessage createAccMessage = (CreateAccMessage) message;
@@ -355,8 +361,10 @@ public class Server {
 
                     UpdateFolderMessage updFldMsg = (UpdateFolderMessage) message;
 
+                    // the UPDATE_FOLDER message can have different subtypes
                     switch (updFldMsg.getAction()) {
                         case Action.CREATE: {
+                            // create a new folder
                             SecurePath folderPath = new SecurePath(user.getStoragePath(), updFldMsg.getFolderPath());
 
                             try{
@@ -373,6 +381,7 @@ public class Server {
                         }
 
                         case Action.DELETE: {
+                            // delete a folder recursively
                             String folderPath = (new SecurePath(user.getStoragePath(), updFldMsg.getFolderPath())).getStringPath();
                             File directory = new File(folderPath);
 
@@ -388,6 +397,7 @@ public class Server {
                         }
 
                         case Action.MOVE: {
+                            // move a folder and its contents
                             SecurePath oldFolderPath = new SecurePath(user.getStoragePath(), updFldMsg.getOldFolderPath());
                             SecurePath folderPath = new SecurePath(user.getStoragePath(), updFldMsg.getFolderPath());
 
@@ -410,6 +420,7 @@ public class Server {
                 }
 
                 case "GET_FOLDER_TREE": {
+                    // gets the structure of a folder
                     GetFolderTreeMessage getFldTreeMessage = (GetFolderTreeMessage) message;
 
                     SecurePath path = new SecurePath(user.getStoragePath(), getFldTreeMessage.getPath());

@@ -20,7 +20,7 @@ public class Client {
     private ObjectInputStream objInStream;
 
     static {
-        // demo purposes, trust my own cert
+        // demo purposes, trusts custom cert
         System.setProperty("javax.net.ssl.trustStore", "client.truststore");
         System.setProperty("javax.net.ssl.trustStorePassword", "changeit");
     }
@@ -50,14 +50,14 @@ public class Client {
     }
 
     public void connect() throws IOException {
+        // connect using TLS
         SSLSocketFactory sslSocketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
-        SSLSocket sslSocket = (SSLSocket) sslSocketFactory.createSocket(serverIp, serverPort);
-        socket = sslSocket;
-        sslSocket.setEnabledProtocols(sslSocket.getSupportedProtocols());
+        socket = (SSLSocket) sslSocketFactory.createSocket(serverIp, serverPort);
+        socket.setEnabledProtocols(socket.getSupportedProtocols());
 
         objOutStream = new ObjectOutputStream(socket.getOutputStream());
         objInStream = new ObjectInputStream(socket.getInputStream());
-        socket.setSoTimeout(10000);     // abort connection after 10 seconds of no response
+        socket.setSoTimeout(300_000);     // abort connection after some time of no response
 
         // insecure
 //        socket = new Socket(serverIp, serverPort);
@@ -97,7 +97,6 @@ public class Client {
         }
 
         // send auth request
-        // not done properly, everything is in plain text!!
         AuthMessage authMessage = new AuthMessage(user);
         objOutStream.writeObject(authMessage);
 

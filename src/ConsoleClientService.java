@@ -45,6 +45,9 @@ public class ConsoleClientService extends Client {
                 System.out.println("Account already exists, authenticated");
             }
         }
+        catch (ClassCastException e){
+            System.out.println("Server disconnected");
+        }
         catch (Exception e){
             System.out.println("Create account failed");
             System.out.println(e.getMessage());
@@ -56,6 +59,9 @@ public class ConsoleClientService extends Client {
         try{
             super.authenticate();
             System.out.println("Authentication successful");
+        }
+        catch (ClassCastException e){
+            System.out.println("Server disconnected");
         }
         catch (Exception e){
             System.out.println("Authentication failed");
@@ -71,13 +77,16 @@ public class ConsoleClientService extends Client {
             super.changePassword(newPassword);
             System.out.println("Changed password successfully");
         }
+        catch (ClassCastException e){
+            System.out.println("Server disconnected");
+        }
         catch (Exception e){
             System.out.println("Change password failed");
             System.out.println(e.getMessage());
         }
     }
 
-    public void uploadFile() throws IOException, ClassNotFoundException {
+    public void uploadFile() {
         System.out.println("== Upload file ==");
         System.out.print("File path: ");
         String path = scanner.nextLine();
@@ -85,13 +94,16 @@ public class ConsoleClientService extends Client {
             super.uploadFile(path);
             System.out.println("File uploaded successfully");
         }
+        catch (ClassCastException e){
+            System.out.println("Server disconnected");
+        }
         catch(Exception e){
             System.out.println("Upload failed");
             System.out.println(e.getMessage());
         }
     }
 
-    public void downloadFile() throws IOException, ClassNotFoundException {
+    public void downloadFile() {
         System.out.println("== Download file ==");
         System.out.print("File path: ");
         String path = scanner.nextLine();
@@ -99,13 +111,16 @@ public class ConsoleClientService extends Client {
             super.downloadFile(path);
             System.out.println("File downloaded successfully");
         }
+        catch (ClassCastException e){
+            System.out.println("Server disconnected");
+        }
         catch(Exception e){
             System.out.println("Download failed");
             System.out.println(e.getMessage());
         }
     }
 
-    public void deleteFile() throws IOException, ClassNotFoundException {
+    public void deleteFile() {
         System.out.println("== Delete file ==");
         System.out.print("File path: ");
         String path = scanner.nextLine();
@@ -113,13 +128,16 @@ public class ConsoleClientService extends Client {
             super.deleteFile(path);
             System.out.println("File deleted successfully");
         }
+        catch (ClassCastException e){
+            System.out.println("Server disconnected");
+        }
         catch(Exception e){
             System.out.println("Delete failed");
             System.out.println(e.getMessage());
         }
     }
 
-    public void createFolder() throws IOException, ClassNotFoundException {
+    public void createFolder() {
         System.out.println("== Create folder ==");
         System.out.print("Folder path: ");
         String path = scanner.nextLine();
@@ -127,13 +145,16 @@ public class ConsoleClientService extends Client {
             super.createFolder(path);
             System.out.println("Folder created successfully");
         }
+        catch (ClassCastException e){
+            System.out.println("Server disconnected");
+        }
         catch(Exception e){
             System.out.println("Create folder failed");
             System.out.println(e.getMessage());
         }
     }
 
-    public void deleteFolder() throws IOException, ClassNotFoundException {
+    public void deleteFolder() {
         System.out.println("== Delete folder ==");
         System.out.print("Folder path: ");
         String path = scanner.nextLine();
@@ -141,13 +162,16 @@ public class ConsoleClientService extends Client {
             super.deleteFolder(path);
             System.out.println("Folder deleted successfully");
         }
+        catch (ClassCastException e){
+            System.out.println("Server disconnected");
+        }
         catch(Exception e){
             System.out.println("Delete folder failed");
             System.out.println(e.getMessage());
         }
     }
 
-    public void moveFolder() throws IOException, ClassNotFoundException {
+    public void moveFolder() {
         System.out.println("== Move folder ==");
         System.out.print("Old folder path: ");
         String oldPath = scanner.nextLine();
@@ -157,13 +181,16 @@ public class ConsoleClientService extends Client {
             super.moveFile(oldPath, newPath);
             System.out.println("Folder moved successfully");
         }
+        catch (ClassCastException e){
+            System.out.println("Server disconnected");
+        }
         catch(Exception e){
             System.out.println("Move failed");
             System.out.println(e.getMessage());
         }
     }
 
-    public void listFolder() throws IOException, ClassNotFoundException {
+    public void listFolder() {
         System.out.println("== List Folder ==");
         System.out.print("Folder path (Enter for root): ");
         String path = scanner.nextLine();
@@ -171,11 +198,13 @@ public class ConsoleClientService extends Client {
             String tree = super.listFolder(path);
             System.out.println(tree);
         }
+        catch (ClassCastException e){
+            System.out.println("Server disconnected");
+        }
         catch(Exception e){
             System.out.println("List failed");
             System.out.println(e.getMessage());
         }
     }
-
 
 }
