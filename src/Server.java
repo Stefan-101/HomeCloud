@@ -1,6 +1,9 @@
 import messages.*;
 import model.*;
 
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocket;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -29,11 +32,17 @@ public class Server {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+        // initialize the TLS keys
+        System.setProperty("javax.net.ssl.keyStore", "./server.keystore");
+        System.setProperty("javax.net.ssl.keyStorePassword", "yourPassword");
     }
 
-        public static void main(String[] args) throws IOException {
-        ServerSocket serverSocket = new ServerSocket(PORT);     // TODO use try
-        System.out.println("Server started");
+    public static void main(String[] args) throws IOException {
+        SSLServerSocketFactory sslServerSocketFactory = (SSLServerSocketFactory) SSLServerSocketFactory.getDefault();
+        SSLServerSocket serverSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(6062);
+
+        System.out.println("Secure TLS server listening on port 6062...");
 
         // Print requests list periodically
 //        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
@@ -50,8 +59,21 @@ public class Server {
 //        }, 0, 30, TimeUnit.SECONDS);
 
         while (true) {
-            Socket socket = serverSocket.accept();
-            System.out.println("Client connected");
+            SSLSocket socket;
+            ObjectInputStream objInStream;
+            ObjectOutputStream objOutStream;
+            try{
+                socket = (SSLSocket) serverSocket.accept();
+                objInStream = new ObjectInputStream(socket.getInputStream());
+                objOutStream = new ObjectOutputStream(socket.getOutputStream());
+                System.out.println("Client connected");
+                System.out.println("Protocol used: " + socket.getSession().getProtocol());
+            }
+            catch (Exception e){
+                System.out.println("Something went wrong on client connection");
+                continue;
+            }
+
 
             new Thread(() -> {
                 try{

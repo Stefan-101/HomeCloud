@@ -31,6 +31,7 @@ bin/
 /downloads
 /serverStorage
 *.txt
+*.keystore
 
 # Ignore Main for now
 Main.java
