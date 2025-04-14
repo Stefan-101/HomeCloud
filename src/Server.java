@@ -14,11 +14,24 @@ import java.util.concurrent.TimeUnit;
 
 public class Server {
     private static final int PORT = 6060;
-    private static final String STORAGE_DIR = "D:/Java/HomeCloud/serverStorage";    // TODO get storage_dir through constructor
+    private static String STORAGE_DIR;
     private static Map<String, User> users = new HashMap<>();
     private static List<Request> requests = new ArrayList<>();
 
-    public static void main(String[] args) throws IOException {
+    static {
+        // should be done with dotenv, but I can't be bothered to install it for one line of text
+        try (BufferedReader reader = new BufferedReader(new FileReader("storage_dir.txt"))) {
+            String storage_dir = reader.readLine();
+            STORAGE_DIR = Path.of(storage_dir).toAbsolutePath().toString();
+            System.out.println(STORAGE_DIR);
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+        public static void main(String[] args) throws IOException {
         ServerSocket serverSocket = new ServerSocket(PORT);     // TODO use try
         System.out.println("Server started");
 
