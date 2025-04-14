@@ -1,7 +1,7 @@
 package messages;
 
-public class OkMessage extends Message {
+public class OkMessage extends ResponseMessage {
     public OkMessage() {
-        super("OK");
+        super("OK", "OK");
     }
 }

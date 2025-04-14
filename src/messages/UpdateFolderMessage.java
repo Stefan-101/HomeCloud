@@ -29,4 +29,8 @@ public class UpdateFolderMessage extends Message {
         return oldFolderPath;
     }
 
+    public boolean contains(String str){
+        return oldFolderPath.contains(str) || folderPath.contains(str);
+    }
+
 }

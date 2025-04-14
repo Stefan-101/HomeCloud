@@ -7,7 +7,7 @@ public class UploadFileMessage extends Message {
 
     private String filename;
 
-    public UploadFileMessage(String filepath, String filename) throws IOException {
+    public UploadFileMessage(String filename) throws IOException {
         super("UPLOAD");
         this.filename = filename;
     }
