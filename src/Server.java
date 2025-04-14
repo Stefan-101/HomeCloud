@@ -55,12 +55,20 @@ public class Server {
 
             new Thread(() -> {
                 try{
-                    socket.setSoTimeout(30000);
-                    handleClient(socket);
+                    socket.setSoTimeout(300_000);
+                    handleClient(socket, objInStream, objOutStream);
                 }
                 catch (Exception e){
                     e.printStackTrace();
-                    System.out.println("Client disconnected");
+
+                    try {
+                        objOutStream.writeObject(new DisconnectMessage());  // client can't yet handle this
+                        objInStream.close();
+                        objOutStream.close();
+                        socket.close();
+                    } catch (IOException ex) {
+                        throw new RuntimeException(ex);
+                    }
                 }
                 finally{
                     System.out.println("Client disconnected");
@@ -86,9 +94,7 @@ public class Server {
         System.out.println(msg + " - " + hostInfo);
     }
 
-    private static void handleClient(Socket socket) throws IOException, ClassNotFoundException {
-        ObjectInputStream objInStream = new ObjectInputStream(socket.getInputStream());
-        ObjectOutputStream objOutStream = new ObjectOutputStream(socket.getOutputStream());
+    private static void handleClient(Socket socket, ObjectInputStream objInStream, ObjectOutputStream objOutStream) throws IOException, ClassNotFoundException {
         User user = null;
         Boolean isAuthenticated = false;
 
@@ -122,12 +128,14 @@ public class Server {
                         }
                         break;
                     }
+
+                    userReq.setStoragePath(STORAGE_DIR + File.separator + userReq.getUsername());
                     users.put(userReq.getUsername(), userReq);
 
                     print("Created user " + userReq.getUsername(), hostInfo);
 
                     // respond
-                    objOutStream.writeObject(new ResponseMessage("OK"));
+                    objOutStream.writeObject(new OkMessage());
                     break;
                 }
 
@@ -137,14 +145,14 @@ public class Server {
                     User reqUser = authMessage.getUser();
 
                     if (!users.containsKey(reqUser.getUsername())) {
-                        objOutStream.writeObject(new ErrMessage("FAIL user does not exist"));
+                        objOutStream.writeObject(new ErrMessage("User does not exist"));
                         print("User does not exist", hostInfo);
                         break;
                     }
 
                     user = authenticate(reqUser);
                     if (user == null) {
-                        objOutStream.writeObject(new ErrMessage("FAIL wrong password"));
+                        objOutStream.writeObject(new ErrMessage("Wrong password"));
                         print("Wrong password", hostInfo);
                         socket.close();
                         return;
@@ -154,6 +162,34 @@ public class Server {
                     // Respond
                     objOutStream.writeObject(new ResponseMessage("AUTHENTICATED"));
                     print("User " + user.getUsername() + " authenticated", hostInfo);
+                    break;
+                }
+
+                case "CHANGE_PW": {
+                    if (!isAuthenticated || user == null) {
+                        objOutStream.writeObject(new ErrMessage("Not Authenticated"));
+                        socket.close();
+                        print("Not authenticated, aborted", hostInfo);
+                        return;
+                    }
+
+                    ChangePasswordMessage changePwMsg = (ChangePasswordMessage) message;
+
+                    // verify credentials
+                    User reqUser = users.get(changePwMsg.getUser().getUsername());
+                    if (reqUser == null || authenticate(changePwMsg.getUser()) == null) {
+                        objOutStream.writeObject(new ErrMessage("User does not exist or wrong password!"));
+                        print("User does not exist or wrong password!", hostInfo);
+                        break;
+                    }
+
+                    // update password
+                    reqUser.setPassword(changePwMsg.getNewPassword());
+                    reqUser.setStoragePath(changePwMsg.getUser().getStoragePath());
+                    users.put(changePwMsg.getUser().getUsername(), reqUser);
+
+                    objOutStream.writeObject(new OkMessage());
+
                     break;
                 }
 
@@ -174,6 +210,8 @@ public class Server {
                     if (file.exists()) {
                         if (!file.delete()) {
                             print("Failed to delete existing file: " + file.getName(), hostInfo);
+                            objOutStream.writeObject(new ErrMessage("Failed to delete existing file"));
+                            break;
                         }
                     } else {
                         file.createNewFile();
@@ -216,6 +254,7 @@ public class Server {
                     if (!file.exists()) {
                         objOutStream.writeObject(new ErrMessage("File does not exist"));
                         print("Request file does not exist: " + downloadFileMessage.getFilepath(), hostInfo);
+                        break;
                     } else {
                         // acknowledge request, prepare for file transmission
                         objOutStream.writeObject(new AckMessage());
@@ -266,7 +305,7 @@ public class Server {
                     }
 
                     // send confirmation
-                    objOutStream.writeObject(new ResponseMessage("OK"));
+                    objOutStream.writeObject(new OkMessage());
 
                     print("File deleted: " + file.getPath(), hostInfo);
 
@@ -283,13 +322,19 @@ public class Server {
 
                     UpdateFolderMessage updFldMsg = (UpdateFolderMessage) message;
 
+                    if (updFldMsg.contains("..")){
+                        objOutStream.writeObject(new ErrMessage("Invalid path"));
+                        print("Invalid path", hostInfo);
+                        break;
+                    }
+
                     switch (updFldMsg.getAction()) {
                         case Action.CREATE: {
                             String folderPath = user.getStoragePath() + File.separator + updFldMsg.getFolderPath();
 
                             try{
                                 Files.createDirectories(Path.of(folderPath));
-                                objOutStream.writeObject(new ResponseMessage("OK"));
+                                objOutStream.writeObject(new OkMessage());
                                 print("Folder created: " + folderPath, hostInfo);
                             }
                             catch (Exception e){
@@ -306,10 +351,11 @@ public class Server {
 
                             if (deleteDirectory(directory)){
                                 print("Folder deleted: " + folderPath, hostInfo);
-                                objOutStream.writeObject(new ResponseMessage("OK"));
+                                objOutStream.writeObject(new OkMessage());
                                 break;
                             }
 
+                            objOutStream.writeObject(new ErrMessage("Folder could not be deleted"));
                             print("Failed to delete folder: " + folderPath, hostInfo);
                             break;
                         }
@@ -320,7 +366,7 @@ public class Server {
 
                             try{
                                 Files.move(Path.of(oldFolderPath), Path.of(folderPath), StandardCopyOption.REPLACE_EXISTING);
-                                objOutStream.writeObject(new ResponseMessage("OK"));
+                                objOutStream.writeObject(new OkMessage());
                                 print("Moved old folder: " + oldFolderPath, hostInfo);
 
                                 break;
@@ -348,34 +394,6 @@ public class Server {
 
                     String response = getFolderTree(Path.of(user.getStoragePath() + File.separator + getFldTreeMessage.getPath()));
                     objOutStream.writeObject(response);
-
-                    break;
-                }
-
-                case "CHANGE_PW": {
-                    if (!isAuthenticated || user == null) {
-                        objOutStream.writeObject(new ErrMessage("Not Authenticated"));
-                        socket.close();
-                        print("Not authenticated, aborted", hostInfo);
-                        return;
-                    }
-
-                    ChangePasswordMessage changePwMsg = (ChangePasswordMessage) message;
-
-                    // verify credentials
-                    User reqUser = users.get(changePwMsg.getUser().getUsername());
-                    if (reqUser == null || !reqUser.equals(changePwMsg.getUser()) || authenticate(changePwMsg.getUser()) == null) {
-                        objOutStream.writeObject(new ErrMessage("User does not exist or wrong password!"));
-                        print("User does not exist or wrong password!", hostInfo);
-                        break;
-                    }
-
-                    // update password
-                    reqUser.setPassword(changePwMsg.getNewPassword());
-                    reqUser.setStoragePath(changePwMsg.getUser().getStoragePath());
-                    users.put(changePwMsg.getUser().getUsername(), reqUser);
-
-                    objOutStream.writeObject(new ResponseMessage("OK"));
 
                     break;
                 }
@@ -415,8 +433,6 @@ public class Server {
     }
 
     private static void walk(Path path, StringBuilder tree, String indent, boolean isLast) throws IOException {
-        if (!Files.isDirectory(path)) return;
-
         tree.append(indent);
         if (isLast) {
             tree.append("└── ");
@@ -427,7 +443,10 @@ public class Server {
         }
         tree.append(path.getFileName()).append("\n");
 
-        File[] files = path.toFile().listFiles();
+        File file = path.toFile();
+        if (!file.isDirectory()) return;
+
+        File[] files = file.listFiles();
         if (files == null) return;
 
         Arrays.sort(files, Comparator.comparing(File::getName));

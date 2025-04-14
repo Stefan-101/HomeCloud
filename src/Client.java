@@ -5,6 +5,7 @@ import java.io.*;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Scanner;
 
 public class Client {
@@ -26,6 +27,20 @@ public class Client {
         this.user = new User(user);
     }
 
+    public void setServerIp(String serverIp) {
+        if (socket != null) {
+            return;
+        }
+        this.serverIp = serverIp;
+    }
+
+    public void setServerPort(int serverPort) {
+        if (socket != null) {
+            return;
+        }
+        this.serverPort = serverPort;
+    }
+
     public void connect() throws IOException {
         socket = new Socket(serverIp, serverPort);
         objOutStream = new ObjectOutputStream(socket.getOutputStream());
@@ -33,37 +48,25 @@ public class Client {
         socket.setSoTimeout(10000);     // abort connection after 10 seconds of no response
     }
 
-    public void createAccount() throws IOException, ClassNotFoundException {
+    public int createAccount() throws IOException, ClassNotFoundException {
         User newUser;
         if (user != null){
             newUser = user;
         }
         else{
-            String username;
-            String password;
-
-            System.out.println("= Create account =");
-            Scanner scanner = new Scanner(System.in);
-            System.out.print("Username: ");
-            username = scanner.nextLine();
-            System.out.print("Password: ");
-            password = scanner.nextLine();
-
-            newUser = new User(username, password);
+            throw new RuntimeException("User not set");
         }
-
-        setUser(newUser);
 
         objOutStream.writeObject(new CreateAccMessage(newUser));
 
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
-        if (response.getResponse().equals("OK")){
-            System.out.println("Created account successfully");
+        if (response instanceof OkMessage){
             authenticate();
+            return 1;
         } else if (response.getResponse().equals("WARN already exists")) {
-            System.out.println("Account already exists, authenticated");
+            return 2;
         } else{
-            System.out.println("Create account failed");
+            throw new RuntimeException("Create account failed");
         }
     }
 
@@ -82,31 +85,36 @@ public class Client {
 
         // await response
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
-        if (response.getResponse().equals("AUTHENTICATED")){
-            System.out.println("Authenticated");
+        if (!response.getResponse().equals("AUTHENTICATED")){
+            throw new RuntimeException(response.getResponse());
         }
-        else{
-            // TODO handle server response (incorrect password, etc)
-            System.out.println("Authentication failed");
+    }
+
+    public void changePassword(String newPassword) throws IOException, ClassNotFoundException {
+        objOutStream.writeObject(new ChangePasswordMessage(this.user, newPassword));
+
+        ResponseMessage response = (ResponseMessage) objInStream.readObject();
+        if (!(response instanceof OkMessage)){
+            throw new RuntimeException(response.getResponse());
         }
+
+        this.user.setPassword(newPassword);
     }
 
     public void uploadFile(String filepath) throws IOException, ClassNotFoundException {
         File file = new File(filepath);
         if (!file.exists()) {
-            System.out.println("File does not exist");
-            return;
+            throw new FileNotFoundException("File does not exist");
         }
 
         // Announce server of upload intent
-        UploadFileMessage uploadFileMessage = new UploadFileMessage(filepath, file.getName());
+        UploadFileMessage uploadFileMessage = new UploadFileMessage(file.getName());
         objOutStream.writeObject(uploadFileMessage);
 
         // Wait for server to acknowledge
         Message response = (Message) objInStream.readObject();
         if (!(response instanceof AckMessage)) {
-            System.out.println("Server not ready to receive file.");
-            return;
+            throw new RuntimeException("Server not ready to receive file.");
         }
 
         // Open the file for reading
@@ -127,10 +135,8 @@ public class Client {
 
         // Wait for the server to acknowledge
         response = (Message) objInStream.readObject();
-        if (response instanceof OkMessage) {
-            System.out.println("File uploaded successfully.");
-        } else {
-            System.out.println("File upload failed.");
+        if (!(response instanceof OkMessage)) {
+            throw new RuntimeException("Upload failed");
         }
     }
 
@@ -143,10 +149,11 @@ public class Client {
         objOutStream.writeObject(new DownloadFileMessage(filepath));
 
         // Prepare storage context
-        File file = new File(currentPath + File.separator + filepath);
+        String fileName = Paths.get(filepath).getFileName().toString();
+        File file = new File(currentPath + File.separator + fileName);
         if (file.exists()) {
             if (!file.delete()) {
-                System.out.println("Failed to delete file");
+                throw new RuntimeException("Failed to delete file on client side");
             }
         } else {
             file.createNewFile();
@@ -154,7 +161,10 @@ public class Client {
         FileOutputStream fileOutputStream = new FileOutputStream(file, true); // append mode
 
         // wait for server's acknowledgement
-        AckMessage ackMessage = (AckMessage) objInStream.readObject();
+        Message response = (Message) objInStream.readObject();
+        if (!(response instanceof AckMessage)){
+            throw new RuntimeException(((ErrMessage) response).getResponse());
+        }
 
         // receive the file
         byte[] buffer = new byte[1024 * 1024]; // 1MB buffer
@@ -166,25 +176,16 @@ public class Client {
 
         // After receiving all chunks, close the output stream
         fileOutputStream.close();
-
-        System.out.println("Downloaded file successfully");
     }
 
     public void deleteFile(String filepath) throws IOException, ClassNotFoundException {
-        // file paths
-        String currentPath = System.getProperty("user.dir") + File.separator + "downloads";
-        Files.createDirectories(Path.of(currentPath));
-
         // send delete request
         objOutStream.writeObject(new DeleteFileMessage(filepath));
 
         // receive server's confirmation
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
-        if (response.getResponse().equals("OK")){
-            System.out.println("Deleted file successfully");
-        }
-        else{
-            System.out.println("Deletion failed: " + response.getResponse());
+        if (!(response instanceof OkMessage)) {
+            throw new RuntimeException(response.getResponse());
         }
     }
 
@@ -192,11 +193,8 @@ public class Client {
         objOutStream.writeObject(new UpdateFolderMessage(Action.CREATE, folderpath));
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
 
-        if (response.getResponse().equals("OK")){
-            System.out.println("Folder created successfully");
-        }
-        else{
-            System.out.println("Folder could not be created");
+        if (!(response instanceof OkMessage)) {
+            throw new RuntimeException(response.getResponse());
         }
     }
 
@@ -204,44 +202,29 @@ public class Client {
         objOutStream.writeObject(new UpdateFolderMessage(Action.DELETE, folderpath));
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
 
-        if (response.getResponse().equals("OK")){
-            System.out.println("Folder deleted successfully");
+        if (!(response instanceof OkMessage)) {
+            throw new RuntimeException(response.getResponse());
         }
-        else{
-            System.out.println("Folder could not be deleted");
-        }
-    }
-
-    public String listFolder(String folderpath) throws IOException, ClassNotFoundException {
-        objOutStream.writeObject(new GetFolderTreeMessage(folderpath));
-        String response = (String) objInStream.readObject();
-
-        return response;
     }
 
     public void moveFile(String oldfilepath, String newfilepath) throws IOException, ClassNotFoundException {
         objOutStream.writeObject(new UpdateFolderMessage(Action.MOVE, oldfilepath, newfilepath));
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
 
-        if (response.getResponse().equals("OK")){
-            System.out.println("File moved successfully");
-        }
-        else{
-            System.out.println("File could not be moved");
+        if (!(response instanceof OkMessage)) {
+            throw new RuntimeException(response.getResponse());
         }
     }
 
-    public void changePassword(String newPassword) throws IOException, ClassNotFoundException {
-        objOutStream.writeObject(new ChangePasswordMessage(this.user, newPassword));
+    public String listFolder(String folderpath) throws IOException, ClassNotFoundException {
+        objOutStream.writeObject(new GetFolderTreeMessage(folderpath));
+        Object response = objInStream.readObject();
 
-        ResponseMessage response = (ResponseMessage) objInStream.readObject();
-        if (response.getResponse().equals("OK")){
-            System.out.println("Changed password successfully");
-            this.user.setPassword(newPassword);
+        if (!(response instanceof String)){
+            throw new RuntimeException(((ErrMessage) response).getResponse());
         }
-        else{
-            System.out.println("Changed password failed");
-        }
+
+        return (String) response;
     }
 
     public void disconnect() throws IOException, ClassNotFoundException {
@@ -255,5 +238,9 @@ public class Client {
         if (socket.isClosed()) {
             System.out.println("Disconnected");
         }
+
+        socket = null;
+        objOutStream = null;
+        objInStream = null;
     }
 }
