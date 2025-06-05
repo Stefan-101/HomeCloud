@@ -33,6 +33,7 @@ public class Client {
 
     public void setUser(User user) {
         this.user = new User(user);
+        logAction("SET_USER");
     }
 
     public void setServerIp(String serverIp) {
@@ -40,6 +41,7 @@ public class Client {
             return;
         }
         this.serverIp = serverIp;
+        logAction("SET_SERVER_IP");
     }
 
     public void setServerPort(int serverPort) {
@@ -47,9 +49,12 @@ public class Client {
             return;
         }
         this.serverPort = serverPort;
+        logAction("SET_SERVER_PORT");
     }
 
     public void connect() throws IOException {
+        logAction("CONNECT");
+
         // connect using TLS
         SSLSocketFactory sslSocketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
         socket = (SSLSocket) sslSocketFactory.createSocket(serverIp, serverPort);
@@ -59,6 +64,7 @@ public class Client {
         objInStream = new ObjectInputStream(socket.getInputStream());
         socket.setSoTimeout(30_000);     // abort connection after some time of no response
 
+
         // insecure
 //        socket = new Socket(serverIp, serverPort);
 //        objOutStream = new ObjectOutputStream(socket.getOutputStream());
@@ -67,6 +73,8 @@ public class Client {
     }
 
     public int createAccount() throws IOException, ClassNotFoundException {
+        logAction("CREATE_ACCOUNT");
+
         User newUser;
         if (user != null){
             newUser = user;
@@ -89,6 +97,7 @@ public class Client {
     }
 
     public void authenticate() throws IOException, ClassNotFoundException {
+        logAction("AUTHENTICATE");
         if (user == null){
             throw new RuntimeException("User is null");
         }
@@ -108,6 +117,8 @@ public class Client {
     }
 
     public void changePassword(String newPassword) throws IOException, ClassNotFoundException {
+        logAction("CHANGE_PASSWORD");
+
         objOutStream.writeObject(new ChangePasswordMessage(this.user, newPassword));
 
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
@@ -119,6 +130,8 @@ public class Client {
     }
 
     public void uploadFile(String filepath) throws IOException, ClassNotFoundException {
+        logAction("UPLOAD_FILE");
+
         File file = new File(filepath);
         if (!file.exists()) {
             throw new FileNotFoundException("File does not exist");
@@ -158,6 +171,8 @@ public class Client {
     }
 
     public void downloadFile(String filepath) throws IOException, ClassNotFoundException {
+        logAction("DOWNLOAD_FILE");
+
         // file paths
         String currentPath = System.getProperty("user.dir") + File.separator + "downloads";
         Files.createDirectories(Path.of(currentPath));
@@ -196,6 +211,8 @@ public class Client {
     }
 
     public void deleteFile(String filepath) throws IOException, ClassNotFoundException {
+        logAction("DELETE_FILE");
+
         // send delete request
         objOutStream.writeObject(new DeleteFileMessage(filepath));
 
@@ -207,6 +224,8 @@ public class Client {
     }
 
     public void createFolder(String folderpath) throws IOException, ClassNotFoundException {
+        logAction("CREATE_FOLDER");
+
         objOutStream.writeObject(new UpdateFolderMessage(Action.CREATE, folderpath));
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
 
@@ -216,6 +235,8 @@ public class Client {
     }
 
     public void deleteFolder(String folderpath) throws IOException, ClassNotFoundException {
+        logAction("DELETE_FOLDER");
+
         objOutStream.writeObject(new UpdateFolderMessage(Action.DELETE, folderpath));
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
 
@@ -225,6 +246,8 @@ public class Client {
     }
 
     public void moveFile(String oldfilepath, String newfilepath) throws IOException, ClassNotFoundException {
+        logAction("MOVE_FILE");
+
         objOutStream.writeObject(new UpdateFolderMessage(Action.MOVE, oldfilepath, newfilepath));
         ResponseMessage response = (ResponseMessage) objInStream.readObject();
 
@@ -234,6 +257,8 @@ public class Client {
     }
 
     public String listFolder(String folderpath) throws IOException, ClassNotFoundException {
+        logAction("LIST_FOLDER");
+
         objOutStream.writeObject(new GetFolderTreeMessage(folderpath));
         Object response = objInStream.readObject();
 
@@ -244,7 +269,27 @@ public class Client {
         return (String) response;
     }
 
+    public void deleteAcc() throws IOException, ClassNotFoundException {
+        logAction("DELETE_ACC");
+
+        objOutStream.writeObject(new DeleteAccMessage());
+        OkMessage okMsg = (OkMessage) objInStream.readObject();
+
+//        objOutStream.close();
+//        objInStream.close();
+//
+//        if (socket.isClosed()) {
+//            System.out.println("Disconnected");
+//        }
+//
+//        socket = null;
+//        objOutStream = null;
+//        objInStream = null;
+    }
+
     public void disconnect() throws IOException, ClassNotFoundException {
+        logAction("DISCONNECT");
+
         // send disconnect request
         objOutStream.writeObject(new DisconnectMessage());
         AckMessage ackMessage = (AckMessage) objInStream.readObject();
@@ -260,4 +305,18 @@ public class Client {
         objOutStream = null;
         objInStream = null;
     }
+
+    private void logAction(String actionName) {
+        String logFilePath = "client_log.csv";
+        String timestamp = java.time.LocalDateTime.now().toString();
+
+        try (FileWriter fw = new FileWriter(logFilePath, true);
+             BufferedWriter bw = new BufferedWriter(fw);
+             PrintWriter out = new PrintWriter(bw)) {
+            out.println(actionName + "," + timestamp);
+        } catch (IOException e) {
+            System.err.println("Failed to log action: " + e.getMessage());
+        }
+    }
+
 }

@@ -20,6 +20,13 @@ public class Server {
     private static final String STORAGE_DIR;
     private static Map<String, User> users = new HashMap<>();       // store users and their passwordsd
     private static List<Request> requests = new ArrayList<>();      // some logging
+    private static List<Message> messages = new ArrayList<>();
+    // TODO add shutdown hook for saving requests to a file
+
+    private static UserService userService = new UserService();
+    private static UserStorageService userStorageService = new UserStorageService();
+    private static RequestService requestService = new RequestService();
+    private static MessageService messageService = new MessageService();
 
     static {
         // should be done with dotenv, but I can't be bothered to install it for one line of text
@@ -52,6 +59,24 @@ public class Server {
 
         // Create truststore
         // keytool -import -alias servercert -file server.crt -keystore client.truststore -storepass changeit
+
+        // init tables
+        userService.createTable();
+        userStorageService.createTable();
+        requestService.createTable();
+        messageService.createTable();
+
+        // initialize users with all users from the db
+        for (User user : userService.getAll()) {
+            users.put(user.getUsername(), user);
+            UserStorage userStorage = userStorageService.getByUsername(user.getUsername());
+            if (userStorage != null) {
+                user.setStorage(userStorage);
+            } else {
+                System.out.println("No storage found in DB for user: " + user.getUsername());
+            }
+
+        }
     }
 
     public static void main(String[] args) throws IOException {
@@ -62,18 +87,18 @@ public class Server {
         System.out.println("Secure TLS server listening on port " + PORT + "...");
 
         // Print requests list periodically
-//        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-//        scheduler.scheduleAtFixedRate(() -> {
-//            System.out.println("== Printing requests list ==");
-//            synchronized (requests) {
-//                List<Request> sortedRequests = new ArrayList<>(requests);
-//                sortedRequests.sort(Comparator.comparing(Request::getUser));
-//                for (Request req : sortedRequests) {
-//                    String userOrIp = req.getUser().getUsername() == "" ? req.getIp() : req.getUser().getUsername();
-//                    System.out.println("  " + userOrIp + ": " + req.getAction() + " at " + req.getTimestamp());
-//                }
-//            }
-//        }, 0, 30, TimeUnit.SECONDS);
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        scheduler.scheduleAtFixedRate(() -> {
+            System.out.println("== Printing requests list ==");
+            synchronized (requests) {
+                List<Request> sortedRequests = new ArrayList<>(requests);
+                sortedRequests.sort(Comparator.comparing(Request::getUser));
+                for (Request req : sortedRequests) {
+                    String userOrIp = req.getUser().getUsername() == "" ? req.getIp() : req.getUser().getUsername();
+                    System.out.println("  " + userOrIp + ": " + req.getAction() + " at " + req.getTimestamp());
+                }
+            }
+        }, 0, 30, TimeUnit.SECONDS);
 
         while (true) {
             // accept connections
@@ -121,6 +146,7 @@ public class Server {
         if (users.containsKey(user.getUsername())){
             if (users.get(user.getUsername()).checkPassword(user.getPassword())){
                 // set storage path for user
+                // this currently overrides what is stored in the db
                 user.setStoragePath(STORAGE_DIR + File.separator + user.getUsername());
                 // create directory if it does not exist
                 Files.createDirectories(Path.of(user.getStoragePath()));
@@ -149,6 +175,14 @@ public class Server {
             // log each message received
             String hostInfo = ((user != null) ? user.getUsername() + " " : "") + socket.getInetAddress().getHostAddress();
             print("Received " + message.getType(), hostInfo);
+
+            // save request and save message
+            int dbReqId = requestService.insert(new Request(user != null ? user.stripPassword() : new User(), socket.getInetAddress().getHostAddress(), message.getType()));
+            messageService.insert(message, dbReqId);
+
+            // save received message
+            messages.add(message);
+
             synchronized (requests) {
                 requests.add(new Request(user != null ? user.stripPassword() : new User(), socket.getInetAddress().getHostAddress(), message.getType()));
             }
@@ -174,6 +208,9 @@ public class Server {
 
                     userReq.setStoragePath(STORAGE_DIR + File.separator + userReq.getUsername());
                     users.put(userReq.getUsername(), userReq);
+
+                    // modify in db
+                    userService.insert(userReq);
 
                     print("Created user " + userReq.getUsername(), hostInfo);
 
@@ -230,6 +267,9 @@ public class Server {
                     reqUser.setPassword(changePwMsg.getNewPassword());
                     users.put(changePwMsg.getUser().getUsername(), reqUser);
 
+                    // update db
+                    userService.updatePassword(changePwMsg.getUser().getUsername(), changePwMsg.getNewPassword());
+
                     objOutStream.writeObject(new OkMessage());
 
                     break;
@@ -274,6 +314,10 @@ public class Server {
 
                     // After receiving all chunks, close the output stream
                     fileOutputStream.close();
+
+                    // save new UserStorage to db
+                    user.updateStorage();
+                    userStorageService.updateStorage(user.getUsername(), user.getStorage());
 
                     // Respond with completion message
                     objOutStream.writeObject(new OkMessage());
@@ -343,6 +387,10 @@ public class Server {
                         break;
                     }
 
+                    // save new UserStorage to db
+                    user.updateStorage();
+                    userStorageService.updateStorage(user.getUsername(), user.getStorage());
+
                     // send confirmation
                     objOutStream.writeObject(new OkMessage());
 
@@ -369,6 +417,11 @@ public class Server {
 
                             try{
                                 Files.createDirectories(folderPath.getPath());
+
+                                // save new UserStorage to db
+                                user.updateStorage();
+                                userStorageService.updateStorage(user.getUsername(), user.getStorage());
+
                                 objOutStream.writeObject(new OkMessage());
                                 print("Folder created: " + folderPath, hostInfo);
                             }
@@ -391,6 +444,10 @@ public class Server {
                                 break;
                             }
 
+                            // save new UserStorage to db
+                            user.updateStorage();
+                            userStorageService.updateStorage(user.getUsername(), user.getStorage());
+
                             objOutStream.writeObject(new ErrMessage("Folder could not be deleted"));
                             print("Failed to delete folder: " + folderPath, hostInfo);
                             break;
@@ -403,6 +460,11 @@ public class Server {
 
                             try{
                                 Files.move(oldFolderPath.getPath(), folderPath.getPath(), StandardCopyOption.REPLACE_EXISTING);
+
+                                // save new UserStorage to db
+                                user.updateStorage();
+                                userStorageService.updateStorage(user.getUsername(), user.getStorage());
+
                                 objOutStream.writeObject(new OkMessage());
                                 print("Moved old folder: " + oldFolderPath, hostInfo);
 
@@ -424,10 +486,25 @@ public class Server {
                     GetFolderTreeMessage getFldTreeMessage = (GetFolderTreeMessage) message;
 
                     SecurePath path = new SecurePath(user.getStoragePath(), getFldTreeMessage.getPath());
-                    String response = getFolderTree(path.getPath());
+                    String response = user.getFolderTree(user.getStoragePath() + "/" + getFldTreeMessage.getPath());
                     objOutStream.writeObject(response);
 
                     break;
+                }
+
+                case "DELETE_ACC": {
+                    // delete their files
+                    File directory = new File(user.getStoragePath());
+
+                    // delete the user
+                    System.out.println("Deleting from db user: " + user.getUsername());
+                    users.remove(user.getUsername());
+                    userService.delete(user.getUsername());
+                    userStorageService.delete(user.getUsername());
+
+                    // send ack
+                    objOutStream.writeObject(new OkMessage());
+
                 }
 
                 case "DISCONNECT": {

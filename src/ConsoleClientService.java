@@ -211,4 +211,13 @@ public class ConsoleClientService extends Client {
         }
     }
 
+    public void deleteAccount() throws IOException, ClassNotFoundException {
+        System.out.println("== Delete account ==");
+        System.out.println("Are you sure? [Y/n]: ");
+        String answer = scanner.nextLine();
+        if (answer.equals("Y")) {
+            super.deleteAcc();
+        }
+    }
+
 }

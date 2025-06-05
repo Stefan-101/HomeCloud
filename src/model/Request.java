@@ -7,7 +7,7 @@ public class Request {
     User user;
     String ip;
     String action;
-    Timestamp timestamp;
+    protected Timestamp timestamp;
 
     public Request(User user, String ip, String action) {
         this.user = user;
